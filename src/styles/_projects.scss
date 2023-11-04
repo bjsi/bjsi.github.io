@@ -30,6 +30,11 @@
     height: auto;
     border-radius: 5px;
   }
+  video {
+    max-width: 100%;
+    height: auto;
+    border-radius: 5px;
+  }
   h5 {
     margin: 0;
   }
@@ -66,6 +71,11 @@
       float: right;
     }
   }
+  video {
+    @media only screen and (min-width: $cut) {
+      float: right;
+    }
+  }
 }
 
 .images-left {
@@ -74,6 +84,11 @@
     width: 48%;
   }
   img {
+    @media only screen and (min-width: $cut) {
+      float: left;
+    }
+  }
+  video {
     @media only screen and (min-width: $cut) {
       float: left;
     }
