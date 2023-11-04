@@ -1,0 +1,16 @@
+---
+layout: post
+---
+
+<h2>AI Popper</h2>
+<p>An open source, AI chatbot to help me understand the works of Karl Popper and David Deutsch.</p>
+
+<video controls>
+  <source src="path_to_video.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+<p>I've been interested in the work of David Deutsch like his books the Beginning of Infinity and the Fabric of Reality for a long time. But they are very dense and require a lot of effort to fully grasp. AI Popper is a chat bot to help me understand his work. </p>
+<p>I started by downloading a large number of resources related to critical rationalism, including books, articles, websites and videos.</p>
+<p>I split each resource into paragraphs and fed them into OpenAI's text embedding model to create a text embedding for each paragraph.</p>
+<p>When you ask a question, I generate a hypothetical answer using OpenAI's gpt-3.5-turbo-instruct model and create an embedding for that answer. This is a technique called Hypothetical Document Embedding and it allows you to improve the retrieval quality when searching for resources matching the user's query. I instruct GPT to answer the user's query in the style of David Deutsch, then embed GPT's answer and search compare the embedding of the hypothetical answer to the embeddings of all the paragraphs. I pick the closest embeddings and give those paragraphs to GPT-4 to generate a real answer with footnotes.</p>
+<p>As GPT-4 streams the answer, I send it to ElevenLabs to read the answer in the voice of David Deutsch.</p>

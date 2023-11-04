@@ -1,0 +1,13 @@
+---
+layout: post
+---
+
+<h2>TypeScript Type Fixing Agent</h2>
+<p>An open source AI agent which automates fixing type errors in large 100,000+ line TypeScript code bases.</p>
+<video controls>
+  <source src="path_to_video.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+<p>Types are like labels that describe what kind of data you can work with in a programming language and type errors are like mislabelled data. Type errors often indicate the existence of a bug. Type errors are easy to identify, but in large code bases they often require complex chains of reasoning to solve because they can span many different files and require a lot of effort to fix.</p>
+<p>My type fixing agent solves this problem by autonomously grinding away fixing type errors while you sleep. When you wake up there will be a nice stack of well-formatted PRs for you to review and either merge or fix.</p>
+<p>This project required learning the compiler API for the TypeScript programming language. The compiler API was incredibly useful because it allowed me to provide precise context to the LLM agent to improve multi-step reasoning performance. I wonder what a Copilot built for typescript which used the compiler API for context would look like...</p>

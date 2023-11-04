@@ -1,0 +1,28 @@
+.header-simple {
+  background: $main;
+  padding: 5px 5px 5px 5px;
+  box-sizing: border-box;
+  color: #FFF;
+  position: fixed;
+  width: 100%;
+  z-index: 10;
+  .logo {
+    color: $sec;
+  }
+  nav {
+    display: inline-block;
+    margin: 0;
+  }
+  a {
+    text-decoration: none;
+    margin: 0 15px;
+    color: #FFF;
+    transition: color 0.3s ease;
+    &:hover {
+      color: $sec;
+    }
+    &:active {
+      color: darken($sec, 10%);
+    }
+  }
+}
