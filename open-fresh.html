@@ -7,5 +7,11 @@ layout: post
 <video controls src="https://media.cleanshot.cloud/media/74694/fBMAihBhaF98h9ZKwh2aPQpiO59qS0FHE9MK00iU.mp4?Expires=1699126509&Signature=UgyVlA7s4nCyPc8anH648tIR1wEG9ZmglWdtm37cR~d5yDXT62StX527s0dXa2h5fnw44fatAhnriQFhnwkeQ4biYMxQbN8ob-w0kfRTef4Sexa342qlfdEP4vXGnjXgOgdusjwMuVAroV6hA1BIU~I6~dnCqMexkP95e~5PsSfZIdZh2r5c9dU3ZDIpN5vLyFaPoWBxaGBHyzvFDo4QEThiyf0EyGfbujYN75dmGVeSeErO93qKRjtgNLk3WUXQqU7Eid-e84g7JVgd9EA~gFUy8uiNkEbcDoj2NpgGHoKiF4MtD3qkj2UL0-f73MSGxrUU55cbD9moC-31HAvEDA__&Key-Pair-Id=K269JMAT9ZF4GZ">
     Your browser does not support the video tag.
 </video>
-<p>Open Fresh is an open source AI meal service system I built which curates personalized meal plans and automates users' grocery shopping. It's inspired by the meal service company Hello Fresh. The AI prepares a custom meal plan tailored to the user based on their requirements. Using GPT to generate the meal plans makes the it extremely flexible - I have used it to plan evening meals for two as well as a week of meals optimized for strength training at the gym.</p>
-<p>Once you have created a meal plan and edited it to your tastes with help from the AI, it's passed to an ingredient purchasing agent I built using GPT and Selenium. The ingredient purchasing agent logs in to your grocery website account and adds the ingredients to your cart for you. All you need to do is check out! The ingredient purchasing agent is smart enough to know how to update recipes on the fly if there are ingredients missing and does its best to match the quantity of ingredient required to your meal plan.</p>
+<p>Open Fresh is an open source AI meal service system I built which curates personalized meal plans and automates users' grocery shopping. It's inspired by the meal service company Hello Fresh.</p>
+<p>Once you have created a meal plan and edited it to your tastes, the ingredient purchasing agent logs in to your grocery website account and adds the ingredients to your cart for you. All you need to do is check out! The ingredient purchasing agent is smart enough to know how to update recipes on the fly if there are ingredients missing and does its best to match the quantity of ingredient required to your meal plan.</p>
+
+<h3>Main Challenges</h3>
+<ul>
+  <li><strong>Automating the grocery shopping experience:</strong> I tried reverse engineering the grocery website's API, but ran into limitations. I decided to use <a href="https://www.selenium.dev/">Selenium</a> web browser automation instead.</li>
+  <li><strong>Handling Missing Ingredients:</strong> I used <a href="https://openai.com/blog/function-calling-and-other-api-updates">GPT function call</a> prompt chains to get GPT to accomodate missing ingredients by updating recipes.</li>
+</ul>

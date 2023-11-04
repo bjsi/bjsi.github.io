@@ -3,16 +3,17 @@ layout: post
 ---
 
 <h2>RemNote Flashcard Copilot</h2>
-<p>A flashcard writing copilot integrated into a note-taking application, designed to enhance the educational experience for students. With inline suggestions and a grammarly-style correctness check, this copilot ensures the production of high-quality flashcards, aiding over 700k users in their learning journeys.</p>
+<p>A flashcard writing copilot integrated into a note-taking application with over 700k registered users.</p>
 <video controls>
   <source src="https://media.cleanshot.cloud/media/74694/HdyGX3KIRmxxPElkyK4eGXtVUE2JYIZnopouV9BJ.mp4?Expires=1699124632&Signature=jCCaSX05609rr~5vWXwhIGuh2sLhjDwk2t72gxALYJDP2V9mnsBJ9WQxfkbP3MZ4QU4njG42A~FM72viSQGIvlLHh4ywue8u5tTZtiXtQhW5PrRej7uAv2bHsOWgj0fh3puUDKPdXsLzV8oHr-Z2WVZznaTPUxPX8qqjoWoI-bDk88q4A~74hEPS4KxErCnTsM7FLbLMIL9o0s0SiP0nX78cJSMqvO~~p6lSzHoY9Hex6MzH9RGubOXVaVNL3ehw3Vf-H8g9lB7bx71njmfgA36922HPWnlkg8ZYGHYIF1tRIyYu7-r5Vkw-59IQbl~w8kwHBJbO5gi8x0KxpfYYBw__&Key-Pair-Id=K269JMAT9ZF4GZ" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 <p>The tool not only eases onboarding for new users by providing expert feedback, but it also serves as an educational scaffold for more seasoned students, encouraging self-improvement in flashcard creation rather than dependence on AI-generated content.</p>
 
-<h3>Addressing Challenges:</h3>
+<h3>Main Challenges:</h3>
 <ul>
-  <li><strong>Minimizing Latency:</strong> Leveraging gpt-3.5-turbo-instruct for rapid response times, critical for maintaining user engagement.</li>
-  <li><strong>User Interface Design:</strong> Creating an intuitive and aesthetically pleasing interface.</li>
+  <li><strong>Backend:</strong> I built RemNote's LLM request backend used across all RemNote's AI projects.</li>
+  <li><strong>Minimizing Latency:</strong> I implemented <a href="https://twitter.com/experilearning/status/1700122711555801315">partial JSON parsing</a> to stream GPT function call results to the user as they are generated.</li>
   <li><strong>Prompt Engineering:</strong> Crafting prompts that cater to a global user base, accommodating multiple languages.</li>
+  <li><strong>Reliability:</strong> I built extensive prompt evaluation suites to ensure high quality completions.</li>
 </ul>
