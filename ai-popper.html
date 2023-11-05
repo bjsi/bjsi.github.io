@@ -4,12 +4,13 @@ layout: post
 
 <h2>AI Popper</h2>
 <p>An open source, AI chatbot to help me understand the works of Karl Popper and David Deutsch.</p>
-
-<video controls
-  src="https://media.cleanshot.cloud/media/74694/UP4FGGZrKTAFHhSmqfxgLRdceHO5NGJgBrTlBCRm.mp4?Expires=1699122986&Signature=SZ~didUKWG3pte9mFJEfQU0yDSQohU1d0PCg3SL0DNReb~uv-weM3D2FQ~VwaddhKQNkk6R2KwKFfhI02gk~MbarOhFdlAUGGsQBSE4CxWTewXNgx-1NR6D1anzrIBCAH0-sQggYjURJiOscoKMJvcpdpke2CO1xeFMvN7qh5uMfKsPRr0nexGGkwI-C9AuTOKnlJk6yARBNVzO6QMW1mxSIzs94HLlQEftjrbqau13HJ3tIJR95bCRI8hPHsY8vMkChYRxxa2peFOxz~ysVeQdx4P5QEwZv5E3FM~AL-X27kPQ5WtaCtJ27PTscwulhJCB2xD25F4IBH6-N23x73A__&Key-Pair-Id=K269JMAT9ZF4GZ">
+<video controls preload="none" onclick="this.paused ? this.play() : this.pause(); arguments[0].preventDefault();" 
+  src="/assets/vid/ai-popper.mp4" poster="/assets/vid/ai-popper-poster.png">
   Your browser does not support the video tag.
 </video>
-<p>I've been interested in the work of David Deutsch like his books the Beginning of Infinity and the Fabric of Reality for a long time. But they are very dense and require a lot of effort to fully grasp. AI Popper is a chat bot to help me understand his work. </p>
+<p>I've been interested in the work of David Deutsch like his books the Beginning of Infinity and the Fabric of Reality
+  for a long time. But they are very dense and require a lot of effort to fully grasp. AI Popper is a chat bot to help
+  me understand his work. </p>
 <p>I started by downloading a large number of resources including books, articles, websites and videos. I split each resource into paragraphs and fed them into OpenAI's text embedding model to create a text embedding for each paragraph.</p>
 <p>When you ask a question, I generate a hypothetical answer using OpenAI's gpt-3.5-turbo-instruct model and create an embedding for that answer. This is a technique called <a href="https://arxiv.org/abs/2212.10496">hypothetical document embedding</a> and it allows you to improve the retrieval quality when searching for resources matching the user's query. I instruct GPT to answer the user's query in the style of David Deutsch, then embed GPT's answer and search compare the embedding of the hypothetical answer to the embeddings of all the paragraphs. I pick the closest embeddings and give those paragraphs to GPT-4 to generate a real answer with footnotes.</p>
 <p>As GPT-4 streams the answer, I send it to ElevenLabs to read the answer in the voice of David Deutsch.</p>
