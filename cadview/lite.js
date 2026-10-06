@@ -13,7 +13,14 @@ const hudText = document.getElementById("hud-text");
 const emptyMsg = document.getElementById("empty");
 
 // ---- renderer / scene / camera ---------------------------------------------
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+let renderer;
+try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+} catch (e) {
+    emptyMsg.textContent = "No WebGL in this browser — the 3D viewer needs it. " +
+        "Open this URL in a regular browser tab.";
+    throw e;
+}
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 view.appendChild(renderer.domElement);
 
@@ -227,6 +234,31 @@ function buildModel(msg) {
     restoreCamera = false;
     render();
     if (!tray.hidden) buildTray();
+    sendThumb();
+}
+
+// gallery thumbnails: snapshot the freshly built scene (tiny PNG, debounced)
+let thumbTimer = 0;
+function sendThumb() {
+    if (!project) return;           // POST just fails quietly when offline
+    clearTimeout(thumbTimer);
+    thumbTimer = setTimeout(() => {
+        try {
+            const c = renderer.domElement;
+            const w = 480, h = Math.max(1, Math.round(480 * c.height / c.width));
+            const o = document.createElement("canvas");
+            o.width = w; o.height = h;
+            const g = o.getContext("2d");
+            g.fillStyle = "#1b1f27";
+            g.fillRect(0, 0, w, h);
+            render();                      // ensure the buffer is fresh
+            g.drawImage(c, 0, 0, w, h);
+            o.toBlob((blob) => {
+                if (blob) fetch(`/api/thumb?name=${encodeURIComponent(project)}`,
+                                { method: "POST", body: blob }).catch(() => { });
+            }, "image/png");
+        } catch (e) { }
+    }, 1200);
 }
 
 // ---- camera ----------------------------------------------------------------
@@ -1239,7 +1271,11 @@ function onRunEvent(msg) {
 }
 
 // ---- data in: fetch + live websocket (rule 2: server is an enhancement) ----
-const project = location.pathname.replace(/^\/(lite\/?)?/, "").replace(/\/+$/, "");
+// the scene is the last path segment: /<project> on a server, or
+// <site>/<project>/ on a static deployment under any subpath
+const project = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
+// a static deployment has no stamp; its gallery is the site root (base href ../)
+hud.href = document.querySelector("meta[name=lite-stamp]") ? "/" : "./";
 let lastReceivedAt = null;
 
 async function fetchScene() {
@@ -1249,9 +1285,13 @@ async function fetchScene() {
     try { resp = await fetch(url, { cache: "no-store" }); } catch { resp = null; }
     if (!resp || !resp.ok) {
         // static deployment (rule 2: no server, still a full viewer): a
-        // baked scene.json next to the page is the whole install
-        try { resp = await fetch("./scene.json", { cache: "no-store" }); } catch { return false; }
-        if (!resp.ok) { emptyMsg.textContent = "nothing pushed for " + (project || "any project") + " yet"; return false; }
+        // baked scene.json next to the page, or scenes/<project>.json on
+        // a multi-scene site (page at <project>/, base href ../)
+        for (const candidate of ["./scene.json", `./scenes/${encodeURIComponent(project)}.json`]) {
+            try { resp = await fetch(candidate, { cache: "no-store" }); } catch { resp = null; }
+            if (resp && resp.ok) break;
+        }
+        if (!resp || !resp.ok) { emptyMsg.textContent = "nothing pushed for " + (project || "any project") + " yet"; return false; }
     }
     const text = await resp.text();
     timings.download_ms = performance.now() - t0;
