@@ -11,6 +11,11 @@ const view = document.getElementById("view");
 const hud = document.getElementById("hud");
 const hudText = document.getElementById("hud-text");
 const emptyMsg = document.getElementById("empty");
+// ?snap=<id>&view=…: this page is a hidden frame rendering a snapshot for
+// the server (an agent asked) — no tray, no thumbnail, post the PNG, done
+const SNAP = new URLSearchParams(location.search).get("snap")
+    ? Object.fromEntries(new URLSearchParams(location.search)) : null;
+if (SNAP) document.documentElement.classList.add("snap");   // chrome off; elements stay (boot reads them)
 
 // ---- renderer / scene / camera ---------------------------------------------
 let renderer;
@@ -100,7 +105,7 @@ function resize() {
     // not at module eval: chromeless app windows can evaluate JS before the
     // compositor sizes the surface, so a load-time width check sees ~0.
     // James's desk windows sit ~760 CSS px wide, so the bar is 600.
-    if (!trayAutoOpened && w >= 600) {
+    if (!trayAutoOpened && w >= 600 && !SNAP) {
         trayAutoOpened = true;
         tray.hidden = false;            // permanent dock — no close affordance
         if (lastShapes) buildTray();
@@ -235,17 +240,20 @@ function buildModel(msg) {
     render();
     if (!tray.hidden) buildTray();
     sendThumb();
+    if (SNAP) snapshot();
 }
 
 // gallery thumbnails: snapshot the freshly built scene (tiny PNG, debounced)
 let thumbTimer = 0;
 function sendThumb() {
-    if (!project) return;           // POST just fails quietly when offline
+    if (!project || SNAP) return;   // POST just fails quietly when offline
     clearTimeout(thumbTimer);
     thumbTimer = setTimeout(() => {
         try {
             const c = renderer.domElement;
-            const w = 480, h = Math.max(1, Math.round(480 * c.height / c.width));
+            // 800 wide: a gallery card AND something an agent can inspect
+            // (GET /thumbs/<scene>.png) without touching the person's page
+            const w = 800, h = Math.max(1, Math.round(800 * c.height / c.width));
             const o = document.createElement("canvas");
             o.width = w; o.height = h;
             const g = o.getContext("2d");
@@ -264,11 +272,11 @@ function sendThumb() {
 // ---- camera ----------------------------------------------------------------
 let restoreCamera = false;   // set when a re-push arrives with a live camera
 
-function fitView() {
-    if (!bbox) return;
-    const center = bbox.getCenter(new THREE.Vector3());
-    const radius = bbox.getSize(new THREE.Vector3()).length() / 2 || 10;
+function fitBox(box) {
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = box.getSize(new THREE.Vector3()).length() / 2 || 10;
     const dir = new THREE.Vector3(1, -1, 0.7).normalize();   // iso-ish, Z-up
+    camera.up.set(0, 0, 1);
     camera.position.copy(center).addScaledVector(dir, radius * 2.4);
     camera.near = radius / 100;
     camera.far = radius * 100;
@@ -276,6 +284,101 @@ function fitView() {
     controls.target.copy(center);
     controls.update();
     render();
+}
+function fitView() { if (bbox) fitBox(bbox); }
+
+// ---- snapshots: the server asks an open page to render a scene in a hidden
+// frame (GET /api/snapshot — an agent checking its work); this page is
+// either the one asked (renderSnapshot) or the frame doing it (snapshot).
+// The person's own view is never touched. ----------------------------------
+const VIEW_DIRS = { iso: [1, -1, 0.7], top: [0, 0, 1], bottom: [0, 0, -1], front: [0, -1, 0],
+                    back: [0, 1, 0], left: [-1, 0, 0], right: [1, 0, 0] };
+function lookFrom(name, zoom) {
+    const v = VIEW_DIRS[name] || VIEW_DIRS.iso;
+    const dist = camera.position.distanceTo(controls.target) / (zoom > 0 ? zoom : 1);
+    camera.up.set(...(v[0] === 0 && v[1] === 0 ? [0, 1, 0] : [0, 0, 1]));
+    camera.position.copy(controls.target).addScaledVector(_gv.set(...v).normalize(), dist);
+    controls.update();
+    render();
+}
+function partIds(spec) {
+    // comma list of ids / labels / path suffixes (resolveTargets semantics)
+    // -> every leaf under each match
+    // -> every leaf under each match; a selector matching nothing exactly
+    // falls back to a case-insensitive substring of the part's own name
+    // ("mouse" finds "mouse (realistic)", "rail" finds every rail)
+    const out = new Set();
+    const under = (id) => {
+        for (const key of partsIndex.keys()) if (key === id || key.startsWith(id + "/")) out.add(key);
+    };
+    for (const sel of (spec || "").split(",").map((s) => s.trim()).filter(Boolean)) {
+        const exact = resolveTargets(sel);
+        if (exact.length) { exact.forEach((g) => under(g.userData.id)); continue; }
+        const needle = sel.toLowerCase();
+        for (const id of nodeGroups.keys())
+            if (id.split("/").pop().toLowerCase().includes(needle)) under(id);
+        for (const id of partsIndex.keys())
+            if (id.split("/").pop().toLowerCase().includes(needle)) out.add(id);
+    }
+    return out;
+}
+async function snapshot() {
+    const p = SNAP;
+    try {
+        const only = partIds(p.only), hide = partIds(p.hide);
+        if (only.size) setVisible([...partsIndex.keys()].filter((k) => !only.has(k)), false);
+        if (hide.size) setVisible([...hide], false);
+        if (animClips.length && (p.clip != null || p.t != null)) {
+            const byName = animClips.findIndex((c) => c.name === p.clip);
+            loadClip(p.clip == null ? 0 : byName >= 0 ? byName : Math.max(0, +p.clip || 0));
+            applyAnimTime(parseFloat(p.t) || 0);
+            modelGroup.updateMatrixWorld(true);
+        }
+        const focus = partIds(p.focus);
+        const box = new THREE.Box3();
+        for (const id of focus) partsIndex.get(id)?.meshes.forEach((m) => { if (m.visible) box.expandByObject(m, true); });
+        if (!box.isEmpty()) fitBox(box); else fitView();
+        lookFrom(p.view || "iso", parseFloat(p.zoom));
+        if (p.yaw) {
+            // turntable: spin the camera about its up axis around the target
+            // (a publisher renders yaw=0,15,30… into a GIF)
+            camera.position.sub(controls.target)
+                .applyAxisAngle(camera.up, (parseFloat(p.yaw) || 0) * DEG)
+                .add(controls.target);
+            controls.update();
+            render();
+        }
+        await new Promise((r) => setTimeout(r, 50));
+        render();
+        const c = renderer.domElement;
+        const o = document.createElement("canvas");
+        o.width = c.width; o.height = c.height;
+        const g = o.getContext("2d");
+        g.fillStyle = "#1b1f27";
+        g.fillRect(0, 0, o.width, o.height);
+        g.drawImage(c, 0, 0);
+        const blob = await new Promise((res) => o.toBlob(res, "image/png"));
+        await fetch("/api/snapshot?id=" + encodeURIComponent(p.snap),
+                    { method: "POST", body: blob, headers: { "Content-Type": "image/png" } });
+    } catch (e) {
+        console.warn("snapshot failed", e);
+    }
+    try { window.parent.postMessage({ cadviewSnapDone: p.snap }, "*"); } catch { }
+}
+function renderSnapshot(msg) {
+    const params = new URLSearchParams({ snap: msg.id, ...(msg.params || {}) });
+    const f = document.createElement("iframe");
+    const w = +msg.params?.w || 1200, h = +msg.params?.h || 800;
+    f.style.cssText = `position:fixed;left:-${w + 100}px;top:0;width:${w}px;height:${h}px;border:0;visibility:hidden`;
+    f.src = "./" + encodeURIComponent(msg.name) + "?" + params;
+    const done = (e) => {
+        if (e.data?.cadviewSnapDone !== msg.id) return;
+        f.remove();
+        window.removeEventListener("message", done);
+    };
+    window.addEventListener("message", done);
+    setTimeout(() => { f.remove(); window.removeEventListener("message", done); }, 60000);
+    document.body.append(f);
 }
 
 // double click/tap: on a part -> open the tray at it (quick hide);
@@ -1279,21 +1382,29 @@ hud.href = document.querySelector("meta[name=lite-stamp]") ? "/" : "./";
 let lastReceivedAt = null;
 
 async function fetchScene() {
-    const url = "/api/scene" + (project ? "?name=" + encodeURIComponent(project) : "");
     const t0 = performance.now();
-    let resp;
-    try { resp = await fetch(url, { cache: "no-store" }); } catch { resp = null; }
-    if (!resp || !resp.ok) {
-        // static deployment (rule 2: no server, still a full viewer): a
-        // baked scene.json next to the page, or scenes/<project>.json on
-        // a multi-scene site (page at <project>/, base href ../)
-        for (const candidate of ["./scene.json", `./scenes/${encodeURIComponent(project)}.json`]) {
-            try { resp = await fetch(candidate, { cache: "no-store" }); } catch { resp = null; }
-            if (resp && resp.ok) break;
+    let text;
+    if (window.CADVIEW_INLINE_SCENE) {
+        // a single-file bake (python -m cadview.bake --single-file): the
+        // scene is gzipped + base64 inside this very page, no server at all
+        const bytes = Uint8Array.from(atob(window.CADVIEW_INLINE_SCENE), (c) => c.charCodeAt(0));
+        text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+    } else {
+        const url = "/api/scene" + (project ? "?name=" + encodeURIComponent(project) : "");
+        let resp;
+        try { resp = await fetch(url, { cache: "no-store" }); } catch { resp = null; }
+        if (!resp || !resp.ok) {
+            // static deployment (rule 2: no server, still a full viewer): a
+            // baked scene.json next to the page, or scenes/<project>.json on
+            // a multi-scene site (page at <project>/, base href ../)
+            for (const candidate of ["./scene.json", `./scenes/${encodeURIComponent(project)}.json`]) {
+                try { resp = await fetch(candidate, { cache: "no-store" }); } catch { resp = null; }
+                if (resp && resp.ok) break;
+            }
+            if (!resp || !resp.ok) { emptyMsg.textContent = "nothing pushed for " + (project || "any project") + " yet"; return false; }
         }
-        if (!resp || !resp.ok) { emptyMsg.textContent = "nothing pushed for " + (project || "any project") + " yet"; return false; }
+        text = await resp.text();
     }
-    const text = await resp.text();
     timings.download_ms = performance.now() - t0;
     const t1 = performance.now();
     const msg = JSON.parse(text);
@@ -1322,7 +1433,10 @@ function connect() {
     const scheme = location.protocol === "https:" ? "wss" : "ws";
     let socket;
     try {
-        socket = new WebSocket(`${scheme}://${location.host}/ws${project ? "?scene=" + encodeURIComponent(project) : ""}`);
+        const q = new URLSearchParams();
+        if (project) q.set("scene", project);
+        if (window.self !== window.top) q.set("helper", "1");   // a hidden frame: never asked to render
+        socket = new WebSocket(`${scheme}://${location.host}/ws?${q}`);
     } catch { return; }   // static deployment: no server, stay a plain viewer
     socket.onopen = () => {
         retryDelay = 1000; hud.classList.add("connected"); connected = true; updateRunUI();
@@ -1356,6 +1470,8 @@ function connect() {
                     location.reload();
                 }
             }).catch(() => { });
+        } else if (msg.type === "snapshot") {
+            renderSnapshot(msg);
         } else if (msg.type === "clear") {
             disposeModel(); render();
             emptyMsg.textContent = "scene cleared";
