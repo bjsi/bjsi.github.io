@@ -1,13 +1,13 @@
 {
  "changed": [
-  "board",
   "bracket",
   "drawer",
   "enclosure",
   "flange",
   "gantry",
   "knob",
-  "mega-desk"
+  "mega-desk",
+  "stepper-board"
  ],
  "unchanged": [],
  "scenes": {}
