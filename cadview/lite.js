@@ -301,6 +301,23 @@ function lookFrom(name, zoom) {
     controls.update();
     render();
 }
+function poseCamera(cam) {
+    // {focus: parts, view: iso|top|…, zoom: n, yaw: deg} — chapters and snapshots
+    const focus = partIds(cam.focus);
+    const box = new THREE.Box3();
+    for (const id of focus) partsIndex.get(id)?.meshes.forEach((m) => { if (m.visible) box.expandByObject(m, true); });
+    if (!box.isEmpty()) fitBox(box); else fitView();
+    lookFrom(cam.view || "iso", parseFloat(cam.zoom));
+    if (cam.yaw) {
+        // turntable: spin the camera about its up axis around the target
+        // (a publisher renders yaw=0,15,30… into a GIF)
+        camera.position.sub(controls.target)
+            .applyAxisAngle(camera.up, (parseFloat(cam.yaw) || 0) * DEG)
+            .add(controls.target);
+        controls.update();
+    }
+    render();
+}
 function partIds(spec) {
     // comma list of ids / labels / path suffixes (resolveTargets semantics)
     // -> every leaf under each match
@@ -328,26 +345,24 @@ async function snapshot() {
         const only = partIds(p.only), hide = partIds(p.hide);
         if (only.size) setVisible([...partsIndex.keys()].filter((k) => !only.has(k)), false);
         if (hide.size) setVisible([...hide], false);
-        if (animClips.length && (p.clip != null || p.t != null)) {
+        let chapterCam = null;
+        if (animClips.length && (p.clip != null || p.t != null || p.chapter != null)) {
             const byName = animClips.findIndex((c) => c.name === p.clip);
             loadClip(p.clip == null ? 0 : byName >= 0 ? byName : Math.max(0, +p.clip || 0));
-            applyAnimTime(parseFloat(p.t) || 0);
+            let t = parseFloat(p.t) || 0;
+            if (p.chapter != null) {   // chapter=<name>: its camera, and its start time unless t= says otherwise
+                const want = String(p.chapter).toLowerCase();
+                const ch = (anim?.chapters || []).find((c) => c.name.toLowerCase() === want);
+                if (ch) { chapterCam = ch.camera || null; if (p.t == null || p.t === "") t = ch.t; }
+            }
+            applyAnimTime(t);
             modelGroup.updateMatrixWorld(true);
         }
-        const focus = partIds(p.focus);
-        const box = new THREE.Box3();
-        for (const id of focus) partsIndex.get(id)?.meshes.forEach((m) => { if (m.visible) box.expandByObject(m, true); });
-        if (!box.isEmpty()) fitBox(box); else fitView();
-        lookFrom(p.view || "iso", parseFloat(p.zoom));
-        if (p.yaw) {
-            // turntable: spin the camera about its up axis around the target
-            // (a publisher renders yaw=0,15,30… into a GIF)
-            camera.position.sub(controls.target)
-                .applyAxisAngle(camera.up, (parseFloat(p.yaw) || 0) * DEG)
-                .add(controls.target);
-            controls.update();
-            render();
-        }
+        if (p.clearance === "0") setClearanceOn(false);   // no collision tint in the shot
+        // explicit view/focus/zoom/yaw win over the chapter's own camera
+        const cam = { ...(chapterCam || {}) };
+        for (const k of ["view", "focus", "zoom", "yaw"]) if (p[k] != null && p[k] !== "") cam[k] = p[k];
+        poseCamera(cam);
         await new Promise((r) => setTimeout(r, 50));
         render();
         const c = renderer.domElement;
@@ -529,6 +544,8 @@ function openTrayFor(id) {
 const animBar = document.getElementById("animbar");
 const playBtn = document.getElementById("anim-play");
 const scrub = document.getElementById("anim-scrub");
+const ticks = document.getElementById("anim-ticks");
+const chapterLabel = document.getElementById("anim-chapter");
 const timeLabel = document.getElementById("anim-time");
 const clipSel = document.getElementById("anim-clip");
 let anim = null, animRAF = 0, animPrev = 0;
@@ -590,9 +607,21 @@ function loadClip(index) {
     if (!tracks.length || duration <= 0) { animBar.hidden = true; render(); return; }
     const animated = new Set();
     tracks.forEach((tr) => tr.groups.forEach((g) => animated.add(g)));
-    anim = { tracks, animated, duration, speed: spec.speed || 1, playing: false, t: 0 };
+    anim = { tracks, animated, duration, speed: spec.speed || 1, playing: false, t: 0,
+             chapters: (spec.chapters || []).filter((c) => c && typeof c.t === "number") };
     scrub.max = duration;
     scrub.step = duration / 500;
+    // chapters (assembly phases etc.): a tick each; click jumps there
+    ticks.textContent = "";
+    for (const ch of anim.chapters) {
+        const el = document.createElement("span");
+        el.className = "tick";
+        // over the thumb's travel: a 16 px thumb never reaches the track's ends
+        el.style.left = `calc(8px + (100% - 16px) * ${Math.min(1, Math.max(0, ch.t / duration))})`;
+        el.title = `${ch.name} · ${(+ch.t).toFixed(1)}s`;
+        el.addEventListener("click", (e) => { e.stopPropagation(); applyAnimTime(ch.t, true); });
+        ticks.append(el);
+    }
     clipSel.value = index;
     animBar.hidden = false;
     collectClearance();
@@ -617,7 +646,7 @@ function sampleTrack(times, values, t) {
     return a + (b - a) * f;
 }
 
-function applyAnimTime(t) {
+function applyAnimTime(t, enterChapters = false) {
     if (!anim) return;
     anim.t = t;
     // tracks COMPOSE: reset every animated node to its base transform, then
@@ -652,7 +681,18 @@ function applyAnimTime(t) {
     if (hoverMark && hoverSrcMesh) hoverMark.matrix.copy(hoverSrcMesh.matrixWorld);
     updateClearance();
     scrub.value = t;
+    let current = null;
+    anim.chapters.forEach((ch, i) => { if (ch.t <= t + 1e-6) current = i; });
     timeLabel.textContent = t.toFixed(1) + "s";
+    chapterLabel.textContent = current !== null ? anim.chapters[current].name : "";
+    ticks.querySelectorAll(".tick").forEach((el, i) => el.classList.toggle("on", i === current));
+    // a chapter can bring its own camera (focus / view / zoom / yaw): posed only
+    // when playback or a tick click ENTERS the chapter — a scrub drag, a clip
+    // (re)load or a re-push never moves the person's camera
+    if (current !== anim.chapterIdx) {
+        anim.chapterIdx = current;
+        if (enterChapters && current !== null && anim.chapters[current].camera) poseCamera(anim.chapters[current].camera);
+    }
     render();
 }
 
@@ -792,7 +832,7 @@ function animStep(now) {
     if (!anim?.playing) return;
     const dt = ((now - animPrev) / 1000) * anim.speed;
     animPrev = now;
-    applyAnimTime((anim.t + dt) % anim.duration);
+    applyAnimTime((anim.t + dt) % anim.duration, true);
     animRAF = requestAnimationFrame(animStep);
 }
 

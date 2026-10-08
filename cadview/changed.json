@@ -1,5 +1,6 @@
 {
  "changed": [
+  "board",
   "bracket",
   "drawer",
   "enclosure",
@@ -8,5 +9,6 @@
   "knob",
   "mega-desk"
  ],
- "unchanged": []
+ "unchanged": [],
+ "scenes": {}
 }
